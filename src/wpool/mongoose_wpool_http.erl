@@ -57,6 +57,6 @@ get_params(Host, Tag) ->
 wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
     TargetServer = gen_mod:get_opt(server, ConnOpts),
     HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
-    Worker = {fusco, {TargetServer, HttpOpts}},
+    Worker = {gun_server, {TargetServer, HttpOpts}},
     [{worker, Worker} | WpoolOptsIn].
 
