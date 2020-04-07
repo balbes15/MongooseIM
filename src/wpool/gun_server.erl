@@ -17,7 +17,7 @@
 
 -record(state, {host,
                 port,
-                protocol}).
+                pid}).
 
 %%%===================================================================
 %%% API
@@ -50,10 +50,11 @@ start_link(Destination, Options) ->
 -spec(init(Args :: term()) ->
     {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term()} | ignore).
-init({{Host, Port}, []}) -> %TODO pass options
-    % TODO implement requests
-
-    {ok, #state{host = Host, port = Port}}.
+init({{Host, Port}, []}) -> 
+    % TODO pass options
+    {ok, PID} = gun:open(Host, Port, #{protocols => [http2]}),
+    {ok, _} = gun:await_up(PID),
+    {ok, #state{host = Host, port = Port, pid = PID}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -72,9 +73,18 @@ init({{Host, Port}, []}) -> %TODO pass options
                      {stop, Reason :: term(), NewState :: #state{}}).
 handle_call(Request, _From, State) ->
 %%    {ok, PID} = gun:open(State#state.host, State#state.port, #{transport => tls}), %this makes gun use http2 in favor of 1. It may be set through options also
-    {ok, PID} = gun:open(State#state.host, State#state.port),
-    {ok, Protocol} = gun:await_up(PID),
-    {reply, ok, State#state{protocol = Protocol}}.
+%    {ok, PID} = gun:open(State#state.host, State#state.port),
+    % {ok, Protocol} = gun:await_up(PID),
+
+    % Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
+    {_, FullPath, Method, Headers, Query, _, _} = Request,
+    
+    StreamRef = gun:request(State#state.pid, Method, FullPath, Headers, Query),
+    Response = gun:await(State#state.pid, StreamRef),
+
+    io:format(Response),
+    % TODO send response
+    {reply, Response, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -87,7 +97,10 @@ handle_call(Request, _From, State) ->
     {noreply, NewState :: #state{}} |
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(_Request, State) ->
+handle_cast(Request, State) ->
+    
+    {_, FullPath, Method, Headers, Query, _, _} = Request,
+    _StreamRef = gun:request(State#state.pid, Method, FullPath, Headers, Query),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
